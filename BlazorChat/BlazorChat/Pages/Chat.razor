@@ -1,0 +1,62 @@
+﻿@using Microsoft.AspNetCore.SignalR.Client
+@implements IDisposable
+<h2>Welcome to my Chat</h2>
+
+<div class="container col-6">
+        <div class="form-group">
+            <label class="col-form-label">User:</label>
+            <input class="form-control" type="text" id="userInput" @bind="@myCurrentMessage.User" />
+            <label class="col-form-label">Message:</label>
+           <input class="form-control" type="text" id="messageInput" @bind="@myCurrentMessage.Message" />
+        </div>
+        <div class="form-group">
+            <button class="btn-primary" type="button" @onclick="Send" disabled="@(!IsConnected)">Enviar</button>
+            <button class="btn-danger" type="button" data-connection="Off">Desconectar</button>
+        </div>
+        <div class="form-group" style="height:200px;">
+            <ul class="list-group" id="messagesList">
+                @foreach (var message in myMessagesRecieved)
+                {
+                    <li class="list-group-item">@message.User: @message.Message</li>
+                }
+            </ul>
+        </div>
+</div>
+
+@code {
+
+    private HubConnection hubConnection;
+    public List<ChatMessage> myMessagesRecieved;
+    public ChatMessage myCurrentMessage;
+
+    protected override async Task OnInitializedAsync()
+    {
+        myCurrentMessage = new ChatMessage();
+
+        myMessagesRecieved = new List<ChatMessage>();
+
+        hubConnection = new HubConnectionBuilder()
+                            .WithUrl("http://localhost:55643/chat")
+                            .Build();
+
+        hubConnection.On<ChatMessage>("RecieveMessage", (chatMessage) =>
+        {
+            myMessagesRecieved.Append(chatMessage);
+            StateHasChanged();
+        });
+
+        await hubConnection.StartAsync();
+    }
+
+    async Task Send() =>
+     await hubConnection.SendAsync("SendMessage", myCurrentMessage);
+
+    public bool IsConnected =>
+        hubConnection.State == HubConnectionState.Connected;
+
+    public void Dispose()
+    {
+        _ = hubConnection.DisposeAsync();
+    }
+
+}
