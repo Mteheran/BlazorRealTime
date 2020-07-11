@@ -63,7 +63,7 @@ namespace BlazorChat.Server
                 endpoints.MapHub<ChatHub>("/chat");
             });
 
-         
+
         }
     }
 }
