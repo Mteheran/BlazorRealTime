@@ -1,6 +1,14 @@
 ﻿@using Microsoft.AspNetCore.SignalR.Client
 @implements IDisposable
 <h2>Welcome to my Chat</h2>
+<h5>You are 
+   @{
+        if (IsConnected)
+        {<span class="badge-success">Online</span> }
+        else
+        { <span class="badge-danger">Offline</span>}
+   }
+</h5>
 
 <div class="container col-6">
         <div class="form-group">
@@ -11,9 +19,9 @@
         </div>
         <div class="form-group">
             <button class="btn-primary" type="button" @onclick="Send" disabled="@(!IsConnected)">Enviar</button>
-            <button class="btn-danger" type="button" data-connection="Off">Desconectar</button>
+            <button class="btn-danger" type="button"  @onclick="Disconnect" disabled="@(!IsConnected)">Desconectar</button>
         </div>
-        <div class="form-group" style="height:200px;">
+        <div style="height:150px; max-height:150px; overflow-y:scroll " >
             <ul class="list-group" id="messagesList">
                 @foreach (var message in myMessagesRecieved)
                 {
@@ -41,18 +49,28 @@
 
         hubConnection.On<ChatMessage>("RecieveMessage", (chatMessage) =>
         {
-            myMessagesRecieved.Append(chatMessage);
+            myMessagesRecieved.Insert(0, chatMessage);
             StateHasChanged();
         });
 
         await hubConnection.StartAsync();
     }
 
-    async Task Send() =>
-     await hubConnection.SendAsync("SendMessage", myCurrentMessage);
+    async Task Send() {
+        await hubConnection.SendAsync("SendMessage", myCurrentMessage);
+        myCurrentMessage.Message = "";
+        StateHasChanged();
+    }
+
+    async Task Disconnect()
+    {
+        await hubConnection.StopAsync();
+        myMessagesRecieved.Insert(0, new ChatMessage() { User ="Host", Message = "You left" });
+        StateHasChanged();
+    }
 
     public bool IsConnected =>
-        hubConnection.State == HubConnectionState.Connected;
+    hubConnection.State == HubConnectionState.Connected;
 
     public void Dispose()
     {
