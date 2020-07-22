@@ -6,6 +6,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using System.Linq;
+using BlazorWhiteBoard.Server.Hubs;
 
 namespace BlazorWhiteBoard.Server
 {
@@ -76,7 +77,7 @@ namespace BlazorWhiteBoard.Server
             app.UseEndpoints(endpoints =>
             {
                 endpoints.MapControllers();
-                endpoints.MapHub<ChatHub>("/chat");
+                endpoints.MapHub<WhiteBoardHub>("/draw");
             });
         }
     }
