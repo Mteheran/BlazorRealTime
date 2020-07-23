@@ -8,10 +8,10 @@
     }
 </style>
     <div >
-        <Canvas @onmousemove="MouseMoveCanvas" onmouseover="MouseOveCanvas" @onmouseup="MouseUpCanvas" @onmousedown="MouseownCanvas" width="300" Height="400"  @ref="_context"></Canvas>
+        <Canvas @onmousemove="MouseMoveCanvas" @onmouseover="MouseOverCanvas" @onmouseup="MouseUpCanvas" @onmousedown="MouseownCanvas" width="300" Height="400"  @ref="_context"></Canvas>
     </div>
-        <select id="color" @bind="clr">
-        <option value="black" selected>Black</option>
+        <select id="color" @bind="@clr">
+        <option value="black">Black</option>
         <option value="red">Red</option>
         <option value="yellow">Yellow</option>
         <option value="green">Green</option>
@@ -34,7 +34,7 @@
 
         protected override async Task OnInitializedAsync()
         {
-            clr = "Black";
+            this.clr = "black";
 
             hubConnection = new HubConnectionBuilder()
                                 .WithUrl(NavigationManager.ToAbsoluteUri("/draw"))
@@ -43,10 +43,10 @@
             hubConnection.On("draw", (int prevX, int prevY, int currentX, int currentY, string color) =>
             {
                 drawCanvas(prevX, prevX, currentX, currentY, color).Wait();
-                StateHasChanged();
             });
 
             await hubConnection.StartAsync();
+            StateHasChanged();
         }
 
         protected override async Task OnAfterRenderAsync(bool firstRender)
