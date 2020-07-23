@@ -1,5 +1,6 @@
 ﻿@page "/"
 @inject NavigationManager NavigationManager
+@inject IJSRuntime js
 
 <style>
     canvas {
@@ -7,111 +8,143 @@
         border: 1px solid #000000;
     }
 </style>
-    <div >
-        <Canvas @onmousemove="MouseMoveCanvas" @onmouseover="MouseOverCanvas" @onmouseup="MouseUpCanvas" @onmousedown="MouseownCanvas" width="300" Height="400"  @ref="_context"></Canvas>
-    </div>
-        <select id="color" @bind="@clr">
-        <option value="black">Black</option>
-        <option value="red">Red</option>
-        <option value="yellow">Yellow</option>
-        <option value="green">Green</option>
-        <option value="blue">Blue</option>
-    </select>
-    <div id="output"></div>
-    @code
+<div @ref="container">
+    <Canvas @onmousemove="MouseMoveCanvas" @onmouseover="MouseOverCanvas" @onmouseup="MouseUpCanvas" @onmousedown="MouseownCanvas" width="300" Height="400" @ref="_context"></Canvas>
+</div>
+<select id="color" @bind="@clr" >
+    <option value="black">Black</option>
+    <option value="red">Red</option>
+    <option value="yellow">Yellow</option>
+    <option value="green">Green</option>
+    <option value="blue">Blue</option>
+</select>
+<div id="output"></div>
+@code
     {
-        private Canvas _context;
-        private HubConnection hubConnection;
-        private double canvasx;
-        private double canvasy;
-        private double last_mousex;
-        private double last_mousey;
-        private double mousex;
-        private double mousey;
-        private bool mousedown = false;
-        private string tooltype = "draw";
-        private string clr = "";
+    private HubConnection hubConnection;
+    private ElementReference container;
+    private Canvas _context;
+    private Excubo.Blazor.Canvas.Contexts.Context2D ctx1;
+    private double canvasx;
+    private double canvasy;
+    private double last_mousex;
+    private double last_mousey;
+    private double mousex;
+    private double mousey;
+    private bool mousedown = false;
+    private string _clr;
 
-        protected override async Task OnInitializedAsync()
+    public string clr
+    {
+        get { return _clr; }
+        set
         {
-            this.clr = "black";
-
-            hubConnection = new HubConnectionBuilder()
-                                .WithUrl(NavigationManager.ToAbsoluteUri("/draw"))
-                                .Build();
-
-            hubConnection.On("draw", (int prevX, int prevY, int currentX, int currentY, string color) =>
-            {
-                drawCanvas(prevX, prevX, currentX, currentY, color).Wait();
-            });
-
-            await hubConnection.StartAsync();
-            StateHasChanged();
-        }
-
-        protected override async Task OnAfterRenderAsync(bool firstRender)
-        {
-            if (firstRender)
-            {
-                await using (var ctx1 = await _context.GetContext2DAsync())
-                {
-                    this.canvasx = await ctx1.ShadowOffsetXAsync();
-                    this.canvasy = await ctx1.ShadowOffsetYAsync();
-                    StateHasChanged();
-                }
-            }
-        }
-
-        async Task MouseownCanvas(MouseEventArgs e)
-        {
-            this.last_mousex = mousex = e.ClientX - canvasx;
-            this.last_mousey = mousey = e.ClientY - canvasy;
-            this.mousedown = true;
-            StateHasChanged();
-        }
-
-        async Task MouseUpCanvas(MouseEventArgs e)
-        {
-            mousedown = false;
-            StateHasChanged();
-        }
-
-        async Task MouseOverCanvas(MouseEventArgs e)
-        {
-            this.last_mousex = 0;
-            this.last_mousey = 0;
-        }
-
-        async Task MouseMoveCanvas(MouseEventArgs e)
-        {
-            mousex = e.ClientX - canvasx;
-            mousey = e.ClientY - canvasy;
-
-            if ((last_mousex > 0 && last_mousey > 0) && mousedown)
-            {
-                await drawCanvas(mousex, mousey, last_mousex, last_mousey, clr);
-                await hubConnection.InvokeAsync("draw", last_mousex, last_mousey, mousex, mousey, clr);
-            }
-            last_mousex = mousex;
-            last_mousey = mousey;
-        }
-
-
-        async Task drawCanvas(double prev_x, double prev_y, double x, double y, string clr)
-        {
-            await using (var ctx1 = await _context.GetContext2DAsync())
-            {
-                await ctx1.BeginPathAsync();
-                await ctx1.GlobalCompositeOperationAsync(CompositeOperation.Source_Over);
-                await ctx1.StrokeStyleAsync(clr);
-                await ctx1.LineWidthAsync(3);
-                await ctx1.MoveToAsync(x, y);
-                await ctx1.LineToAsync(x, y);
-                await ctx1.LineJoinAsync(LineJoin.Round);
-                await ctx1.LineCapAsync(LineCap.Round);
-                await ctx1.StrokeAsync();
-                StateHasChanged();
-            }
-
+            _clr = value;
+            ColorChange(value);
         }
     }
+
+    protected override async Task OnInitializedAsync()
+    {
+        this.clr = "black";
+
+        hubConnection = new HubConnectionBuilder()
+                            .WithUrl(NavigationManager.ToAbsoluteUri("/draw"))
+                            .Build();
+
+        hubConnection.On("draw", (int prevX, int prevY, int currentX, int currentY, string color) =>
+        {
+            drawCanvas(prevX, prevX, currentX, currentY, color).Wait();
+        });
+
+        await hubConnection.StartAsync();
+        StateHasChanged();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            ctx1 = await _context.GetContext2DAsync();
+            // initialize settings
+            await ctx1.GlobalCompositeOperationAsync(CompositeOperation.Source_Over);
+            await ctx1.StrokeStyleAsync(clr);
+            await ctx1.LineWidthAsync(3);
+            await ctx1.LineJoinAsync(LineJoin.Round);
+            await ctx1.LineCapAsync(LineCap.Round);
+            // this retrieves the top left corner of the canvas container (which is equivalent to the top left corner of the canvas, as we don't have any margins / padding)
+            var p = await js.InvokeAsync<Position>("eval", $"let e = document.querySelector('[_bl_{container.Id}=\"\"]'); let r = {{ 'Left': e.offsetLeft, 'Top': e.offsetTop }}; r");
+            (canvasx, canvasy) = (p.Left, p.Top);
+        }
+    }
+
+
+    async Task ColorChange(string value)
+    {
+        if (ctx1 != null) ctx1.StrokeStyleAsync(value).AsTask().Wait();
+    }
+
+    async Task MouseownCanvas(MouseEventArgs e)
+    {
+        render_required = false;
+        this.last_mousex = mousex = e.ClientX - canvasx;
+        this.last_mousey = mousey = e.ClientY - canvasy;
+        this.mousedown = true;
+    }
+
+    async Task MouseUpCanvas(MouseEventArgs e)
+    {
+        render_required = false;
+        mousedown = false;
+    }
+
+    async Task MouseOverCanvas(MouseEventArgs e)
+    {
+        this.last_mousex = 0;
+        this.last_mousey = 0;
+    }
+
+    async Task MouseMoveCanvas(MouseEventArgs e)
+    {
+        mousex = e.ClientX - canvasx;
+        mousey = e.ClientY - canvasy;
+
+        if ((last_mousex > 0 && last_mousey > 0) && mousedown)
+        {
+            await drawCanvas(mousex, mousey, last_mousex, last_mousey, clr);
+            await hubConnection.InvokeAsync("draw", last_mousex, last_mousey, mousex, mousey, clr);
+        }
+        last_mousex = mousex;
+        last_mousey = mousey;
+    }
+
+
+    async Task drawCanvas(double prev_x, double prev_y, double x, double y, string clr)
+    {
+        await using (var ctx2 = await ctx1.CreateBatchAsync())
+        {
+            await ctx2.BeginPathAsync();
+            await ctx2.MoveToAsync(prev_x, prev_y);
+            await ctx2.LineToAsync(x, y);
+            await ctx2.StrokeAsync();
+        }
+
+    }
+
+    private bool render_required = true;
+    protected override bool ShouldRender()
+    {
+        if (!render_required)
+        {
+            render_required = true;
+            return false;
+        }
+        return base.ShouldRender();
+    }
+
+    private class Position
+    {
+        public double Left { get; set; }
+        public double Top { get; set; }
+    }
+}
