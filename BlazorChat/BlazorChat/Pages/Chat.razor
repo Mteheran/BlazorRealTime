@@ -44,7 +44,8 @@
         myMessagesRecieved = new List<ChatMessage>();
 
         hubConnection = new HubConnectionBuilder()
-                            .WithUrl("http://localhost:55643/chat")
+                            .WithUrl("http://localhost:5005/chat")
+                            .WithAutomaticReconnect()
                             .Build();
 
         hubConnection.On<ChatMessage>("RecieveMessage", (chatMessage) =>
